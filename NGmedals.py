@@ -79,7 +79,7 @@ def url(URL):
 		page = urlopen(req).read().decode("utf-8").replace("´", "'")
 	except Exception as e:
 		print(page)
-		print(page.getcode() + " - " + URL)
+		print(URL)
 		sys.exit(e)
 	if page == "An internal server error has occurred, and the staff has been alerted. The site could be under heavy load at the moment, so you may want to try again in a few minutes.":
 		sys.exit("Newgrounds is down at the moment. Please try again in a few minutes.")
@@ -166,7 +166,6 @@ def calcTotalRequests(username):
 
 def getUserMedals(username, milestones, donePages, IDs, IDDict, medalData, isuser=True):
 	gamesList, topUserMedals, gamePages = {}, {}, [{}, 0]
-	LCletters = "abcdefghijklmnopqrstuvwxyz"
 	statsreplace = [
 		("\t", ""), ("\n", ""), (" ", ""), #spaces are removed due to inconsistencies
 		("MedalsEarned:<strong>", ""), ("</strong>/", "|"), ("<em>(<strong>", "|"), ("points)</em>", "")
@@ -186,17 +185,26 @@ def getUserMedals(username, milestones, donePages, IDs, IDDict, medalData, isuse
 			headstart = page.find("<a", page.find("<h2", start))
 			headstart = page.find(">", headstart) + 1
 			headend = page.find("</a>", headstart)
+			if headstart > page.find("</h2>", start):
+				#NG Easter Eggs - no link
+				headstart = page.find(">", page.find("<h2", start)) + 1
+				headend = page.find("</h2>", headstart)
 			game = page[headstart:headend].strip()
 			if game not in medalData:
 				medalData[game] = []
 			topUserMedals[game] = []
 			firstletter = game.lower()[0]
-			if firstletter not in gamePages[0] and firstletter in LCletters:
+			if firstletter not in gamePages[0] and firstletter in "abcdefghijklmnopqrstuvwxyz":
 				gamePages[0][firstletter] = i + 1
 
 			idstart = page.find("/portal/view/", start) + 13
 			idend = page.find('"', idstart)
-			ID = page[idstart:idend]
+			if idstart > headend: #NG Easter Eggs
+				ID = "0"
+				idend = headend
+			else:
+				ID = page[idstart:idend]
+
 			try:
 				int(ID) #remember ID is still a string
 			except:
@@ -644,16 +652,18 @@ def main():
 			username = ""
 	sortType, rev = settings["sort"], False
 	if sortType == "":
-		sortType = input("Enter the number corresponding to the sorting you desire.\n"+
-						 "To reverse the sorting order, add an 'r' after the numeral.\n"+
-						 "  1: The number of points you are missing in the game (descending).\n"+
-						 "  2: The number of medals you are missing in the game (descending).\n"+
-						 "  3: The name of the game (ascending).\n"+
-						 "  4: The number of points you have in the game (descending).\n"+
-						 "  5: The number of medals you have in the game (descending).\n"+
-						 "  6: The total number of points in the game (descending).\n"+
-						 "  7: The total number of medals in the game (descending).\n"+
-						 "Or press Enter for the default, 1: ")
+		sortType = input(
+			"Enter the number corresponding to the sorting you desire.\n" +
+			"To reverse the sorting order, add an 'r' after the numeral.\n" +
+			"  1: The number of points you are missing in the game (descending).\n" +
+			"  2: The number of medals you are missing in the game (descending).\n" +
+			"  3: The name of the game (ascending).\n" +
+			"  4: The number of points you have in the game (descending).\n" +
+			"  5: The number of medals you have in the game (descending).\n" +
+			"  6: The total number of points in the game (descending).\n" +
+			"  7: The total number of medals in the game (descending).\n" +
+			"Or press Enter for the default, 1: "
+		)
 	if sortType == "":
 		sortType = "1"
 	if len(sortType) > 1:

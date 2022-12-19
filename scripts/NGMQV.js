@@ -1,6 +1,6 @@
 //Newgrounds Medals Quick View by Bobogoobo, copyright 2022
 //Run on https://www.newgrounds.com/gameswithmedals/
-//	Copy the entire file, open the browser console (F12), and paste.
+//	Copy the entire file, open the browser console (F12), paste, and press Enter.
 //	Needs to be re-run on each page.
 //	Delays each request by one second for NG rate limits.
 //	Check near first line of code for configuration options.

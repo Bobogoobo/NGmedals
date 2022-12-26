@@ -1,15 +1,23 @@
 //Newgrounds Medals Quick View by Bobogoobo, copyright 2022
+//Shows your medal progress in each game at a glance on the Games With Medals collection page.
 //Run on https://www.newgrounds.com/gameswithmedals/
 //	Copy the entire file, open the browser console (F12), paste, and press Enter.
 //	Needs to be re-run on each page.
+//		(After the first time, you should be able to just press the up arrow in the console and then press Enter.)
 //	Delays each request by one second for NG rate limits.
 //	Check near first line of code for configuration options.
 //Note: unearned secret medals will skew points completion values.
 //Please report any bugs, suggestions, questions, etc by PM ( https://bobogoobo.newgrounds.com/ )
-//TODO: formatting doesn't work in Chrome console; save whole thing in a string for the end
-//todo: there's also the `medals` variable that has everything, not sure if I can access that, might have to parse from page code.
+//TODO: something if all non-secret medals are broken
+//TODO: indication of running for when a lot are unplayed
+//TODO: on someone else's medals page have to open the compare link and parse that instead
+//	on author page would take multiple steps but compare link works even if they haven't played it, just need the game's medals api id
+//todo: something on your own medals page
+//todo: better styling (more intuitive)
+//todo: on game pages there's also the `medals` variable that has everything, not sure if I can access that, might have to parse from page code.
 
-//Color coding:
+//Color coding (open to suggestions):
+//	very faded = broken
 //	faded = 100%
 //	green = 75% to 100%
 //	yellow = 50% to 75%
@@ -20,6 +28,14 @@
 ;(function() {
 	var debug = false;// change to true to run only on first five games listed
 	var completionByMedals = true;// change to false to evaluate completion highlighting by points
+
+	var mode;
+	var finalOut = '';
+	var pending = 0;
+
+	function pad(num, len, str) {
+		return num.toString().padStart(len || 3, str || ' ');
+	}
 
 	function getPage(gameLink, callback, isRetry) {
 		var url = gameLink.getAttribute('href');
@@ -61,7 +77,12 @@
 	}
 
 	function parsePage(page, elem) {
-		var completion = 0, background = [], opacity = 25;
+		if (debug) {
+			console.log(page);
+		}
+
+		var output = '';
+		var completion = 0, isBroken = false, background = [], opacity = 25;
 		var gameData = {
 			id: elem.getAttribute('href').split('/').slice(-1)[0],
 			title: page.querySelector('#embed_header h2').textContent.trim(),
@@ -88,21 +109,43 @@
 		if (completion === 100 && gameData.unearnedSecret || Number.isNaN(completion)) {
 			completion = 0;
 		}
-		console.log(
-			'%s (%s): %.3d / %.3d medals [%s%], %.4d / %.4d points [%s%]%s',
-			gameData.title.padStart(100, ' '),
-			gameData.id.padStart(7, ' '),
-			gameData.medalsEarned,
-			gameData.medalsTotal,
-			(Math.round(gameData.medalsEarned / gameData.medalsTotal * 100) || 0).toString().padStart(3, ' '),
-			gameData.pointsEarned,
-			gameData.pointsTotal,
-			(Math.round(gameData.pointsEarned / gameData.pointsTotal * 100) || 0).toString().padStart(3, ' '),
-			gameData.unearnedSecret ? '* (' + gameData.unearnedSecret + ' secret)' : ''
-		);
+		if (!gameData.medalsTotal || (!gameData.unearnedSecret && !gameData.pointsTotal)) {
+			isBroken = true;
+		}
+
+		//Add to console output
+		output = [
+			pad(gameData.title, 100),
+			'(' + pad(gameData.id, 7) + '):',
+			pad(gameData.medalsEarned),
+			'/',
+			pad(gameData.medalsTotal),
+			'medals',
+			'[' + pad(Math.round(gameData.medalsEarned / gameData.medalsTotal * 100) || 0) + '%]',
+			'|',
+			pad(gameData.pointsEarned, 4),
+			'/',
+			pad(gameData.pointsTotal, 4),
+			'points',
+			'[' + pad(Math.round(gameData.pointsEarned / gameData.pointsTotal * 100) || 0) + '%]',
+		];
+		if (gameData.unearnedSecret) {
+			output[output.length - 1] += '*';
+			output.push('(' + gameData.unearnedSecret + ' secret)');
+		}
+		if (isBroken) {
+			output.push('(seems broken)');
+		}
+		if (finalOut) {
+			finalOut += '\n';
+		}
+		finalOut += output.join(' ');
+
 		//Determine styling
-		if (completion === 100) {
-			opacity = 20;
+		if (isBroken) {
+			opacity = 5;
+		} else if (completion === 100) {
+			opacity = 25;
 		} else if (completion < 100 && completion >= 75) {
 			background = [0, 128, 0];
 		} else if (completion < 75 && completion >= 50) {
@@ -120,12 +163,52 @@
 		} else if (opacity >= 0 && opacity <= 100) {
 			elem.parentElement.style.opacity = opacity + '%';
 		}
-		
+
+		checkDone();
 	}
 
-	document.querySelectorAll('.podcontent .game > a').forEach(function(gameLink, i) {
-		if (!debug || (debug && i < 5)) {
-			setTimeout(getPage, 1000 * i, gameLink, parsePage);
+	function checkDone() {
+		pending -= 1;
+		if (!pending) {
+			console.log(finalOut);
 		}
-	});
+	}
+
+	function start() {
+		var selector;
+		var href = window.location.href.replace(window.location.search, '').replace(/sort\/(?:date|title)\/page\/\d+/, '');
+		var page = href.slice(href.indexOf('.'));
+
+		if (debug) {
+			console.log('Debug mode');
+		}
+
+		if (href === 'https://www.newgrounds.com/gameswithmedals/') {
+			mode = 'gwm';
+		} else if (page === '.newgrounds.com/games/' || page === '.newgrounds.com/movies/') {
+			//Doesn't work due to being different domain or something
+			mode = 'author';
+		} else if (page === '.newgrounds.com/stats/medals') {
+			if (document.querySelector('.user-link').textContent === document.querySelector('.usermenu-userlink')) {
+				mode = 'mymedals';
+			} else {
+				mode = 'medalstats';
+			}
+		}
+
+		selector = {
+			'gwm': '.podcontent .game > a, .podcontent .movie > a',
+			'author': '.portalsubmission-cell > a',
+			'medalstats': '.medal-game-meta > div > a',
+		}[mode];
+
+		document.querySelectorAll(selector).forEach(function(gameLink, i) {
+			if (!debug || (debug && i < 5)) {
+				pending += 1;
+				setTimeout(getPage, 1000 * i, gameLink, parsePage);
+			}
+		});
+	}
+
+	start();
 })();
